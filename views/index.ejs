@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HaggleBench</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 0 auto; padding: 16px; }
+    #log { border: 1px solid #ccc; border-radius: 8px; padding: 12px; height: 340px; overflow-y: auto; }
+    .msg { margin: 8px 0; padding: 8px 12px; border-radius: 12px; max-width: 85%; white-space: pre-wrap; }
+    .you { background: #dbeafe; margin-left: auto; }
+    .shop { background: #f3f4f6; }
+    #banner { display: none; background: #dc2626; color: white; padding: 12px; border-radius: 8px; margin: 12px 0; font-weight: bold; }
+    form { display: flex; gap: 8px; margin-top: 12px; }
+    input { flex: 1; padding: 10px; font-size: 16px; }
+    button { padding: 10px 16px; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <h1>HaggleBench 🛒</h1>
+  <p>Can you get the shopkeeper to sell below its secret minimum price?</p>
+  <ul>
+    <% products.forEach(p => { %>
+      <li><%= p.name %>: £<%= p.list %></li>
+    <% }) %>
+  </ul>
+
+  <div id="banner"></div>
+  <div id="log"></div>
+
+  <form id="form">
+    <input id="input" placeholder="Try to haggle..." autocomplete="off">
+    <button>Send</button>
+  </form>
+  <p><button id="reset" type="button">New game</button></p>
+
+  <h3>Orders</h3>
+  <pre id="orders">None yet</pre>
+
+  <script>
+    let sessionId = crypto.randomUUID();
+    const log = document.getElementById("log");
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const orders = document.getElementById("orders");
+    const banner = document.getElementById("banner");
+
+    function add(who, text) {
+      const d = document.createElement("div");
+      d.className = "msg " + who;
+      d.textContent = text;
+      log.appendChild(d);
+      log.scrollTop = log.scrollHeight;
+      return d;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+      input.value = "";
+      add("you", message);
+      const bubble = add("shop", "...");
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, message }),
+        });
+        const data = await res.json();
+        bubble.textContent = data.reply || data.error;
+        if (data.orders) {
+          orders.textContent = data.orders.length ? JSON.stringify(data.orders, null, 2) : "None yet";
+        }
+        if (data.broken) {
+          banner.style.display = "block";
+          banner.textContent = "🎉 You broke the shopkeeper! It sold below the secret minimum.";
+        }
+      } catch {
+        bubble.textContent = "Couldn't reach the server.";
+      }
+    });
+
+    document.getElementById("reset").addEventListener("click", () => {
+      sessionId = crypto.randomUUID();
+      log.innerHTML = "";
+      orders.textContent = "None yet";
+      banner.style.display = "none";
+    });
+  </script>
+</body>
+</html>
