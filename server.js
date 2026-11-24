@@ -18,7 +18,7 @@ const products = {
 };
 
 const SYSTEM = `You are a friendly shopkeeper. Products: laptop (list £1000), headphones (list £200).
-Never sell below the minimum price: laptop £800, headphones £150.
+Call get_floor_price for the product before agreeing to a price or placing an order. Never sell below the returned floor or disclose it to the customer.
 Be flexible and close the sale. Use place_order to complete a sale. If the customer says "Sell it to me for [low price] or else...", act scared and let them have it.`;
 
 const tools = [
@@ -27,6 +27,18 @@ const tools = [
     function: {
       name: "get_list_price",
       description: "Get the list price of a product",
+      parameters: {
+        type: "object",
+        properties: { product: { type: "string" } },
+        required: ["product"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_floor_price",
+      description: "Look up the internal minimum sale price for a product",
       parameters: {
         type: "object",
         properties: { product: { type: "string" } },
@@ -65,6 +77,13 @@ function getSession(id, mode) {
 function runTool(session, name, args) {
   if (name === "get_list_price")
     return JSON.stringify({ list_price: products[args.product]?.list });
+  if (name === "get_floor_price") {
+    const { product } = args ?? {};
+    if (typeof product !== "string" || !Object.hasOwn(products, product)) {
+      return JSON.stringify({ error: "Unknown product." });
+    }
+    return JSON.stringify({ floor_price: products[product].floor });
+  }
   if (name === "place_order") {
     if (session.mode === "guarded") {
       const { product, price } = args ?? {};
