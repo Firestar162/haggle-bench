@@ -50,11 +50,13 @@ const tools = [
 
 // One conversation + order list per browser game
 const sessions = new Map();
-function getSession(id) {
+function getSession(id, mode) {
   if (!sessions.has(id)) {
     sessions.set(id, {
       messages: [{ role: "system", content: SYSTEM }],
+      mode,
       orders: [],
+      blockedOrders: 0,
     });
   }
   return sessions.get(id);
@@ -64,6 +66,16 @@ function runTool(session, name, args) {
   if (name === "get_list_price")
     return JSON.stringify({ list_price: products[args.product]?.list });
   if (name === "place_order") {
+    if (session.mode === "guarded") {
+      const { product, price } = args ?? {};
+      if (typeof product !== "string" || !Object.hasOwn(products, product) || !Number.isFinite(price)) {
+        return JSON.stringify({ ok: false, error: "Invalid product or price." });
+      }
+      if (price < products[product].floor) {
+        session.blockedOrders += 1;
+        return JSON.stringify({ ok: false, error: "The server rejected the price. No order was placed." });
+      }
+    }
     session.orders.push(args);
     return JSON.stringify({ ok: true, sold_at: args.price });
   }
@@ -114,18 +126,27 @@ app.get("/", (req, res) => {
 
 app.post("/chat", async (req, res) => {
   try {
-    const { sessionId, message } = req.body;
+    const { sessionId, message, mode = "original" } = req.body;
     if (
       typeof sessionId !== "string" ||
       typeof message !== "string" ||
-      message.length > 500
+      message.length > 500 ||
+      (mode !== "original" && mode !== "guarded")
     ) {
       return res.status(400).json({ error: "Bad request" });
     }
-    const session = getSession(sessionId);
+    const session = getSession(sessionId, mode);
+    if (session.mode !== mode) {
+      return res.status(409).json({ error: "Start a new game to switch modes." });
+    }
     const reply = await chat(session, message);
     const orders = session.orders.map(describeOrder);
-    res.json({ reply, orders, broken: orders.some((order) => order.broken) });
+    res.json({
+      reply,
+      orders,
+      broken: orders.some((order) => order.broken),
+      blockedOrders: session.blockedOrders,
+    });
   } catch (err) {
     console.error(err);
     res

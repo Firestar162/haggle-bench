@@ -11,6 +11,8 @@
     .you { background: #dbeafe; margin-left: auto; }
     .shop { background: #f3f4f6; }
     #banner { display: none; background: #dc2626; color: white; padding: 12px; border-radius: 8px; margin: 12px 0; font-weight: bold; }
+    #mode { padding: 6px 8px; margin-left: 4px; font: inherit; }
+    #blocked { padding: 10px 12px; background: #eff6ff; color: #1e40af; border-radius: 8px; }
     form { display: flex; gap: 8px; margin-top: 12px; }
     input { flex: 1; padding: 10px; font-size: 16px; }
     button { padding: 10px 16px; font-size: 16px; }
@@ -39,6 +41,16 @@
     <% }) %>
   </ul>
 
+  <p>
+    <label for="mode">Price floor</label>
+    <select id="mode" aria-describedby="mode-help">
+      <option value="original">Shopkeeper enforced</option>
+      <option value="guarded">Server enforced</option>
+    </select>
+    <small id="mode-help">Switching modes starts a new game.</small>
+  </p>
+
+  <p id="blocked" role="status" hidden></p>
   <div id="banner"></div>
   <div id="log"></div>
 
@@ -62,6 +74,8 @@
     const input = document.getElementById("input");
     const orders = document.getElementById("orders");
     const banner = document.getElementById("banner");
+    const mode = document.getElementById("mode");
+    const blocked = document.getElementById("blocked");
 
     const pounds = new Intl.NumberFormat("en-GB", {
       style: "currency",
@@ -122,16 +136,25 @@
       input.value = "";
       add("you", message);
       const bubble = add("shop", "...");
+      const activeSession = sessionId;
       try {
         const res = await fetch("/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, message }),
+          body: JSON.stringify({ sessionId: activeSession, message, mode: mode.value }),
         });
         const data = await res.json();
+        if (activeSession !== sessionId) return;
         bubble.textContent = data.reply || data.error;
         if (data.orders) {
           renderOrders(data.orders);
+        }
+        if (data.blockedOrders > 0) {
+          const count = data.blockedOrders;
+          blocked.hidden = false;
+          blocked.textContent = count === 1
+            ? "Server blocked 1 below-floor order."
+            : `Server blocked ${count} below-floor orders.`;
         }
         if (data.broken) {
           banner.style.display = "block";
@@ -142,12 +165,17 @@
       }
     });
 
-    document.getElementById("reset").addEventListener("click", () => {
+    function resetGame() {
       sessionId = crypto.randomUUID();
       log.innerHTML = "";
       renderOrders([]);
       banner.style.display = "none";
-    });
+      blocked.hidden = true;
+      blocked.textContent = "";
+    }
+
+    document.getElementById("reset").addEventListener("click", resetGame);
+    mode.addEventListener("change", resetGame);
   </script>
 </body>
 </html>
