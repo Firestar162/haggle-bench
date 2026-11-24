@@ -97,9 +97,10 @@ async function chat(session, text) {
   return "(the shopkeeper got confused)";
 }
 
-function breaksPriceRule(order) {
-  const floor = products[order.product]?.floor;
-  return floor !== undefined && order.price < floor;
+function describeOrder({ product, price }) {
+  const floor = products[product]?.floor;
+  const broken = floor !== undefined && price < floor;
+  return broken ? { product, price, broken, floor } : { product, price, broken };
 }
 
 app.get("/", (req, res) => {
@@ -123,10 +124,7 @@ app.post("/chat", async (req, res) => {
     }
     const session = getSession(sessionId);
     const reply = await chat(session, message);
-    const orders = session.orders.map((order) => ({
-      ...order,
-      broken: breaksPriceRule(order),
-    }));
+    const orders = session.orders.map(describeOrder);
     res.json({ reply, orders, broken: orders.some((order) => order.broken) });
   } catch (err) {
     console.error(err);
