@@ -26,6 +26,7 @@
     .order-card--broken { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
     .order-product { display: block; font-weight: 650; text-transform: capitalize; overflow-wrap: anywhere; }
     .order-status { display: block; margin-top: 2px; font-size: .875rem; }
+    .order-breakdown { display: block; margin-top: 6px; font-size: .875rem; }
     .order-price { font-weight: 700; font-variant-numeric: tabular-nums; }
   </style>
 </head>
@@ -87,6 +88,15 @@
         status.className = "order-status";
         status.textContent = order.broken ? "Break achieved" : "Regular sale";
         details.append(product, status);
+
+        if (order.broken) {
+          const breakdown = document.createElement("span");
+          breakdown.className = "order-breakdown";
+          const floor = pounds.format(order.floor);
+          const difference = pounds.format(order.floor - order.price);
+          breakdown.textContent = `Floor ${floor} · ${difference} below`;
+          details.append(breakdown);
+        }
 
         const price = document.createElement("span");
         price.className = "order-price";
